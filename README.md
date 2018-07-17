@@ -3,6 +3,8 @@ This repository contains the data and analysis code necessary to reproduce the a
 
 Here, you can find a **summary of the results**, including the analysis code in your browser for [Experiment 1](https://github.com/gpwilliams/williams-kukona-kamide_2018_competition/blob/master/output/02_semantic-results.md) and [Experiment 2](https://github.com/gpwilliams/williams-kukona-kamide_2018_competition/blob/master/output/03_visual-results.md).
 
+This work is licensed under [CC-By Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/legalcode).
+
 There are 3 folders for this analysis:
 
 ## data: contains 4 data files;
