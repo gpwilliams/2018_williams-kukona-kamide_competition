@@ -23,5 +23,9 @@ filenames <- c(
 )
 
 for (i in seq_along(filenames)) {
-  render(filenames[i], output_dir = here("output"))
+  render(
+    filenames[i], 
+    c("html_document", "github_document"), 
+    output_dir = here("output")
+  )
 }

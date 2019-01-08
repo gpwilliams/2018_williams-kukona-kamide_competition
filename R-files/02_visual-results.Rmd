@@ -2,10 +2,11 @@
 title: "Experiment 2 (Visual Competition)"
 author: Williams, G.P., Kukona, A., & Kamide, Y.
 output:
-  html_document: 
+  html_document:
     toc: true
     toc_float: true
-    keep_md: true
+  rmarkdown::github_document:
+    toc: false
 ---
 
 This document provides a reproducible analysis for Experiment 2 of the paper *Spatial narrative context modulates semantic (but not visual) competition during discourse processing* by Glenn P. Williams, Anuenue Kukona, & Yuki Kamide. 
