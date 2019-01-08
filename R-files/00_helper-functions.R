@@ -3,41 +3,25 @@
 #   Glenn Williams - 2018/07/17
 ###############################################################################
 
-round_three <- function(data) {
-  # Round any numeric columns in a data frame to 2 decimal places.
-  # Inputs: data = data.frame object containing numeric columns.
-  # Ouputs: data = data.frame object with numeric columns rounded to 3 dp.
-  data %>% mutate_if(is.numeric, round, digits = 3)
+round_pad <- function(num, digits = 3) {
+  # Rounds any number to specified digits but forces padding of zeroes
+  # Defaults to 3 digits.
+  # e.g. 0.0101 with round(0.0101, digits = 3) = 0.01
+  # while round_three(0.0101, digits = 3) = 0.010
+  # used for matching of CI in tables.
+  # Inputs: num = numeric variable to round
+  # Outputs: character vector of numeric variables, rounded to
+  #           specified digits (defaults to 3).
+  formatC(round(num, digits = 3), format = "f", digits = 3)
 }
 
-bind_pairwise <- function(data) {
-  # Saves a list of data frame outputs from multiple test statistics
-  #   and binds them together as one output with a group ID.
-  # Input: data = list containing IDs by which pairwise stats are calculated
-  #                 and a data frame of results consisting of test
-  #                 statistics for each comparison.
-  # Output: data frame containing binded results with group ID col.
-  output <- NULL
-  for (ii in 1: nrow(data[1])) {
-    # extract results for each pairwise comparison
-    group_dat <- as.data.frame(data[["results"]][ii]) %>%
-      filter(group == "fixed") %>% 
-      dplyr::select(-group)
-    
-    # check for groups, add as group ID col, or warn if too many
-    if (ncol(data) == 2) {
-      group_dat$group <- data[[1]][ii]
-    } else if (ncol(data) == 3) {
-      group_dat$group <- paste(data[[1]][ii], "and", data[[2]][ii])
-    } else if (ncol(data) > 3) {
-      print("warning, too many groups selected")
-    }
-    
-    # bind results together, print with group as first col
-    output <- rbind(output, group_dat)
-    output <- output %>% select(group, 1:(ncol(output)))
-  }
-  round_three(output) # round to 3dp
+round_all_three <- function(data, digits = 3) {
+  # Round any numeric columns in a data frame to 3 decimal places,
+  #   and forces padding of zeroes.
+  # Relies upon the round_pad() function.
+  # Inputs: data = data.frame object containing numeric columns.
+  # Ouputs: data = data.frame object with numeric columns rounded to 3 dp.
+  data %>% mutate_if(is.numeric, round_pad, digits = digits)
 }
 
 subset_to_window <- function(data, time_col, times, time_window, time_shift) {
@@ -131,17 +115,40 @@ make_dvs <- function(data, successes, bins) {
     )
 }
 
-tidy_model <- function(merMod) {
-  # Inputs: merMod = a saved model from lme4
-  # Outputs: data.frame of tidied fixed effects and p-values
-  #           Note: p-values calculated via the normal approximation
-  merMod %>% 
-    tidy("fixed") %>% 
-    mutate(p_value = 2*(1 - pnorm(abs(statistic)))) %>%
+make_confint <- function(merMod, confint_method = "Wald") {
+  merMod %>%
+    confint(., method = confint_method) %>%
+    as.data.frame() %>%
+    na.omit() %>%
+    tibble::rownames_to_column(., "term") %>%
     mutate_if(is.numeric, funs(round(., 3)))
 }
 
-test_interactions <- function(data, group, formula) {
+tidy_model <- function(merMod, confint = TRUE, ...) {
+  # Inputs: merMod = a saved model from lme4
+  # Outputs: data.frame of tidied fixed effects and p-values
+  #           Note: p-values calculated via the normal approximation
+  if (confint == TRUE) {
+    confints <- make_confint(merMod, ...)
+  }
+  tidied_model <- merMod %>% 
+    broom::tidy("fixed") %>% 
+    mutate(p_value = 2*(1 - pnorm(abs(statistic)))) %>%
+    mutate_if(is.numeric, funs(round(., 3)))
+  if (confint == TRUE) {
+    merge(tidied_model, confints) 
+  } else {
+    tidied_model
+  }
+}
+
+test_interactions <- function(
+  data, 
+  group, 
+  formula, 
+  confint = TRUE, 
+  ...
+) {
   # Runs lme on a factor within groups (for interactions)
   # Inputs: data = data.frame from which comparisons will be made
   #         group = group to split by
@@ -151,13 +158,33 @@ test_interactions <- function(data, group, formula) {
   # Outputs: 
   #   data.frame containing tidied model outputs for pairwise comparisons.
   group_var <- enquo(group)
-  output <- data %>% 
+  data %>% 
     group_by(!!group_var) %>%
-    do(results = tidy(lmer(formula, data = .)))
-  # store output, calculate p-values, round to 3dp
-  bind_pairwise(output) %>%
-    mutate(p_value = 2*(1-pnorm(abs(statistic)))) %>%
-    mutate_if(is.numeric, funs(round(., 3)))
+    do(
+      results = tidy_model(
+        lmer(formula, data = .), 
+        confint, 
+        ...
+      )
+    ) %>%
+    unnest()
+}
+
+test_many_levels <- function(merMod, contrast_matrix, adjusted = "bonferroni") {
+  # extract pairwise comparisons (difference score estimates)
+  model_summary <- summary(
+    multcomp::glht(merMod, contrast_matrix),
+    test = adjusted(adjusted)
+  ) %>% tidy()
+  
+  # estimate confidence intervals
+  intervals <- confint(multcomp::glht(merMod, contrast_matrix)) %>% 
+    tidy()
+  
+  # merge together and tidy columns
+  merge(model_summary, intervals) %>%
+    rename(comparison = lhs) %>%
+    select(-rhs)
 }
 
 merge_tables <- function(subjects_table, item_table) {
@@ -171,14 +198,14 @@ merge_tables <- function(subjects_table, item_table) {
     mutate(aggregate = rep(c("Subjects", "Items"), 
                            each = nrow(output_table)/2)
     ) %>%
-    select(aggregate, everything())
+    dplyr::select(aggregate, everything())
 }
 
 adjust_multiple <- function(data, n_comparisons) {
   # Adjusts p-values for multiple comparisons, returns to 3dp.
   # Inputs: data = the data frame containing statistics to adjust
   #           data must contain a column called p_value to adjust
-  #        n_comparisons = number of comparisons for which to adjust
+  #         n_comparisons = number of comparisons for which to adjust
   # Outputs: data.frame with p_value column of adjusted p-values to 3dp
   format(
     p.adjust(
@@ -188,4 +215,44 @@ adjust_multiple <- function(data, n_comparisons) {
     ), 
     nsmall = 3
   )
+}
+
+ci_of_mean <- function(mean, sd, n, rounding = 3) {
+  # Calculates the 95% confidence interval around the mean
+  # Inputs: mean = numeric variable of the mean
+  #         sd = standard deviation around the mean
+  #         n = number of observations that make up the mean
+  #         rounding = decimals by which to round the output (defaults to 3)
+  # Outputs: character vector containing both lower and upper bounds of the 
+  #           confidence interval around the mean in square brackets.
+  paste0(
+    "[", 
+    round_pad(mean - qt(0.975, df = n-1)*sd/sqrt(n), rounding), 
+    "; ", 
+    round_pad(mean + qt(0.975, df = n-1)*sd/sqrt(n), rounding),
+    "]"
+  )
+}
+
+pretty_confint <- function(data, lower, upper, colname = "ci", rounding = 3) {
+  # Creates a character column of two numeric columns inside square brackets.
+  # Used for merging confidence intervals together from two columns
+  # Inputs: data = data.frame containing two numeric columns, lower and upper.
+  #         lower = character string of the lower CI value column
+  #         upper = character string of the upper CI value column
+  #         colname = name of column following merge (defaults to "ci")
+  #         rounding = rounding to apply to column values (defaults to 3)
+  output <- data
+  
+  output[[colname]] <- 
+    paste0(
+      "[", 
+      round_pad(data[[lower]], rounding),
+      "; ", 
+      round_pad(data[[upper]], rounding),
+      "]"
+    )
+  output[[lower]] <- NULL
+  output[[upper]] <- NULL
+  output
 }

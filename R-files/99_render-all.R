@@ -1,23 +1,27 @@
 # load packages and helper functions
-required_packages <- c("dplyr", 
-                       "tidyr", 
-                       "lme4", 
-                       "broom", 
-                       "ggplot2", 
-                       "knitr", 
-                       "rmarkdown"
-                       )
+required_packages <- c(
+  "here",
+  "lme4",
+  "multcomp",
+  "dplyr",
+  "tidyr",
+  "stringr",
+  "broom",
+  "ggplot2",
+  "knitr",
+  "rmarkdown"
+)
 
-lapply(required_packages, require, character.only = TRUE)
-source("01_helper-functions.R")
+lapply(required_packages, library, character.only = TRUE)
+source(here("R-files", "00_helper-functions.R"))
 
-# load data and render documents
-render("02_semantic-results.Rmd", 
-       c("html_document", "github_document"), 
-       output_dir = "../output/"
-       )
+# render documents
+filenames <- c(
+  "01_semantic-results.Rmd",
+  "02_visual-results.Rmd",
+  "03_additional-analyses.Rmd"
+)
 
-render("03_visual-results.Rmd", 
-       c("html_document", "github_document"), 
-       output_dir = "../output/"
-       )
+for (i in seq_along(filenames)) {
+  render(filenames[i], output_dir = here("output"))
+}

@@ -1,4 +1,4 @@
-participant_number,gender,age,included,notes
+subject,gender,age,included,notes
 01,F,19,yes,
 02,M,19,yes,
 03,M,22,yes,
