@@ -175,7 +175,8 @@ test_many_levels <- function(merMod, contrast_matrix, adjusted = "bonferroni") {
   model_summary <- summary(
     multcomp::glht(merMod, contrast_matrix),
     test = adjusted(adjusted)
-  ) %>% tidy()
+  ) %>% 
+    tidy()
   
   # estimate confidence intervals
   intervals <- confint(multcomp::glht(merMod, contrast_matrix)) %>% 

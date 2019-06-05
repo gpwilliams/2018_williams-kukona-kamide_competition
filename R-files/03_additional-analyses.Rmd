@@ -179,7 +179,8 @@ prox_data_list <- list(
   item_zero_vs_one = prox_by_item %>% filter(prox != 2), 
   item_zero_vs_two = prox_by_item %>% filter(prox != 1),
   item_one_vs_two = prox_by_item %>% filter(prox != 0)
-  )
+  ) %>% 
+  purrr::map(~mutate(., prox = factor(prox)))
 
 prox_bf <- data.frame(
   model = names(prox_data_list), 

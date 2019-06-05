@@ -17,9 +17,9 @@ source(here("R-files", "00_helper-functions.R"))
 
 # render documents
 filenames <- c(
-  "01_semantic-results.Rmd",
-  "02_visual-results.Rmd",
-  "03_additional-analyses.Rmd"
+  here("R-files", "01_semantic-results.Rmd"),
+  here("R-files", "02_visual-results.Rmd"),
+  here("R-files", "03_additional-analyses.Rmd")
 )
 
 for (i in seq_along(filenames)) {
